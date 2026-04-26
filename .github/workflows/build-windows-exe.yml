@@ -1,0 +1,36 @@
+name: Build Windows EXE
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install customtkinter pynput pyinstaller
+
+      - name: Build EXE
+        run: |
+          pyinstaller --onefile --windowed --name Vime_AutoClicker_13CPS vime_autoclicker_13cps.py
+
+      - name: Upload EXE artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Vime_AutoClicker_13CPS_EXE
+          path: dist/Vime_AutoClicker_13CPS.exe
