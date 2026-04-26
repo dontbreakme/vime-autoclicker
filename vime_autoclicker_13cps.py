@@ -31,9 +31,15 @@ SPECIAL_KEYS = {
     "esc": keyboard.Key.esc,
     "escape": keyboard.Key.esc,
     "shift": keyboard.Key.shift,
+    "shift_l": keyboard.Key.shift_l,
+    "shift_r": keyboard.Key.shift_r,
     "ctrl": keyboard.Key.ctrl,
     "control": keyboard.Key.ctrl,
+    "ctrl_l": keyboard.Key.ctrl_l,
+    "ctrl_r": keyboard.Key.ctrl_r,
     "alt": keyboard.Key.alt,
+    "alt_l": keyboard.Key.alt_l,
+    "alt_r": keyboard.Key.alt_r,
     "tab": keyboard.Key.tab,
     "backspace": keyboard.Key.backspace,
     "delete": keyboard.Key.delete,
@@ -74,15 +80,31 @@ def key_to_name(key) -> str:
     return str(key).lower()
 
 
+def normalize_key_name(name: str) -> str:
+    """Нормализует названия клавиш: ctrl_l/ctrl_r считаются обычным ctrl."""
+    value = str(name).strip().lower()
+
+    if value in {"ctrl", "control", "ctrl_l", "ctrl_r"}:
+        return "ctrl"
+
+    if value in {"shift", "shift_l", "shift_r"}:
+        return "shift"
+
+    if value in {"alt", "alt_l", "alt_r", "alt_gr"}:
+        return "alt"
+
+    return value
+
+
 def same_key(pressed_key, configured_name: str) -> bool:
-    return key_to_name(pressed_key) == str(configured_name).strip().lower()
+    return normalize_key_name(key_to_name(pressed_key)) == normalize_key_name(configured_name)
 
 
 DEFAULT_CONFIG = {
     "cps": DEFAULT_CPS,
     "mouse_button": "ЛКМ",
     "click_mode": "Переключатель",
-    "toggle_hotkey": "f6",
+    "toggle_hotkey": "ctrl",
     "pause_hotkey": "f7",
     "emergency_hotkey": "f8",
     "macros": {
@@ -116,6 +138,11 @@ class ConfigManager:
         merged = json.loads(json.dumps(DEFAULT_CONFIG, ensure_ascii=False))
         merged.update(data)
         merged["cps"] = clamp_int(merged.get("cps"), MIN_CPS, MAX_CPS, DEFAULT_CPS)
+
+        # Если у пользователя остался старый config.json с F6, автоматически меняем на Ctrl.
+        if str(merged.get("toggle_hotkey", "")).strip().lower() == "f6":
+            merged["toggle_hotkey"] = "ctrl"
+
         merged.setdefault("macros", DEFAULT_CONFIG["macros"])
         return merged
 
@@ -249,7 +276,7 @@ class HotkeyListener:
             return
 
         mode = cfg.get("click_mode", "Переключатель")
-        if same_key(key, cfg.get("toggle_hotkey", "f6")):
+        if same_key(key, cfg.get("toggle_hotkey", "ctrl")):
             self.app.emergency_requested = False
             if mode == "Переключатель":
                 self.app.autoclicker.toggle()
@@ -265,7 +292,7 @@ class HotkeyListener:
 
     def on_release(self, key):
         cfg = self.app.get_config_snapshot()
-        if cfg.get("click_mode") == "Удержание" and same_key(key, cfg.get("toggle_hotkey", "f6")):
+        if cfg.get("click_mode") == "Удержание" and same_key(key, cfg.get("toggle_hotkey", "ctrl")):
             self.app.autoclicker.stop()
 
     def shutdown(self):
@@ -330,7 +357,7 @@ class App(ctk.CTk):
         self.mode_menu = ctk.CTkOptionMenu(left, values=["Переключатель", "Удержание"], variable=self.click_mode_var)
         self.mode_menu.grid(row=6, column=0, padx=25, pady=8, sticky="ew")
 
-        self.toggle_hotkey_entry = self._labeled_entry(left, 7, "Hotkey клика / удержания", "f6")
+        self.toggle_hotkey_entry = self._labeled_entry(left, 7, "Hotkey клика / удержания", "ctrl")
         self.pause_hotkey_entry = self._labeled_entry(left, 9, "Hotkey паузы", "f7")
         self.emergency_hotkey_entry = self._labeled_entry(left, 11, "Экстренное выключение", "f8")
 
@@ -376,7 +403,7 @@ class App(ctk.CTk):
         self.on_cps_change(cps)
         self.mouse_button_var.set(self.config_data.get("mouse_button", "ЛКМ"))
         self.click_mode_var.set(self.config_data.get("click_mode", "Переключатель"))
-        self._set_entry(self.toggle_hotkey_entry, self.config_data.get("toggle_hotkey", "f6"))
+        self._set_entry(self.toggle_hotkey_entry, self.config_data.get("toggle_hotkey", "ctrl"))
         self._set_entry(self.pause_hotkey_entry, self.config_data.get("pause_hotkey", "f7"))
         self._set_entry(self.emergency_hotkey_entry, self.config_data.get("emergency_hotkey", "f8"))
         self.refresh_macro_menu()
@@ -405,7 +432,7 @@ class App(ctk.CTk):
         self.config_data["cps"] = clamp_int(self.cps_value.get(), MIN_CPS, MAX_CPS, DEFAULT_CPS)
         self.config_data["mouse_button"] = self.mouse_button_var.get()
         self.config_data["click_mode"] = self.click_mode_var.get()
-        self.config_data["toggle_hotkey"] = self.toggle_hotkey_entry.get().strip() or "f6"
+        self.config_data["toggle_hotkey"] = self.toggle_hotkey_entry.get().strip() or "ctrl"
         self.config_data["pause_hotkey"] = self.pause_hotkey_entry.get().strip() or "f7"
         self.config_data["emergency_hotkey"] = self.emergency_hotkey_entry.get().strip() or "f8"
         if not no_save:
